@@ -46,6 +46,12 @@ export const autoConnectAtom = atomWithStorage(
 	false,
 );
 
+/** 是否在连接断开后自动重连 */
+export const autoReconnectAtom = atomWithStorage(
+	"amll-ws-connector:autoReconnect",
+	true,
+);
+
 /** WebSocket 连接状态 */
 export type ConnectionStatus =
 	| "disconnected"

@@ -10,6 +10,7 @@ import BugReportIcon from "@mui/icons-material/BugReport";
 import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
 import LinkIcon from "@mui/icons-material/Link";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
+import SyncIcon from "@mui/icons-material/Sync";
 import WifiIcon from "@mui/icons-material/Wifi";
 import {
 	Alert,
@@ -34,6 +35,7 @@ import { SettingItem } from "./components/ui/SettingItem";
 import { useNcmTheme } from "./hooks/useNcmTheme";
 import {
 	autoConnectAtom,
+	autoReconnectAtom,
 	type ConnectionStatus,
 	connectionErrorAtom,
 	connectionStatusAtom,
@@ -104,6 +106,7 @@ export default function App() {
 function Main() {
 	const [wsUrl, setWsUrl] = useAtom(wsUrlAtom);
 	const [autoConnect, setAutoConnect] = useAtom(autoConnectAtom);
+	const [autoReconnect, setAutoReconnect] = useAtom(autoReconnectAtom);
 	const [status, setStatus] = useAtom(connectionStatusAtom);
 	const [error, setError] = useAtom(connectionErrorAtom);
 	const [displayError, setDisplayError] = useState(error);
@@ -261,6 +264,18 @@ function Main() {
 					<Switch
 						checked={autoConnect}
 						onChange={(_, checked) => setAutoConnect(checked)}
+					/>
+				}
+			/>
+
+			<SettingItem
+				icon={<SyncIcon />}
+				title="断开自动重连"
+				description="连接断开后自动尝试重新连接（每3秒重试）"
+				action={
+					<Switch
+						checked={autoReconnect}
+						onChange={(_, checked) => setAutoReconnect(checked)}
 					/>
 				}
 			/>

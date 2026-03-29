@@ -7,6 +7,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useRef } from "react";
 import {
 	autoConnectAtom,
+	autoReconnectAtom,
 	connectionErrorAtom,
 	connectionStatusAtom,
 	lyricAtom,
@@ -37,10 +38,15 @@ import { AudioDataBus } from "./InfLinkBridge";
 export function AmllWsClient() {
 	const wsRef = useRef<WebSocket | null>(null);
 	const hasAutoConnected = useRef(false);
+	const hasAttemptedConnect = useRef(false);
+	const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const isManualDisconnect = useRef(false);
+	const autoReconnectRef = useRef(false);
 	const coverManagerRef = useRef(new CoverManager());
 
 	const wsUrl = useAtomValue(wsUrlAtom);
 	const autoConnect = useAtomValue(autoConnectAtom);
+	const autoReconnect = useAtomValue(autoReconnectAtom);
 	const [status, setStatus] = useAtom(connectionStatusAtom);
 	const setError = useSetAtom(connectionErrorAtom);
 
@@ -62,9 +68,44 @@ export function AmllWsClient() {
 	const setRepeatMode = useSetAtom(setRepeatModeAtom);
 	const setShuffleMode = useSetAtom(setShuffleModeAtom);
 
+	const clearReconnectTimer = useCallback(() => {
+		if (reconnectTimerRef.current) {
+			clearTimeout(reconnectTimerRef.current);
+			reconnectTimerRef.current = null;
+		}
+	}, []);
+
+	const scheduleReconnect = useCallback(() => {
+		if (!autoReconnectRef.current || isManualDisconnect.current) return;
+
+		clearReconnectTimer();
+
+		reconnectTimerRef.current = setTimeout(() => {
+			if (autoReconnectRef.current && !isManualDisconnect.current) {
+				setStatus("connecting");
+			}
+		}, 3000);
+	}, [setStatus, clearReconnectTimer]);
+
+	useEffect(() => {
+		autoReconnectRef.current = autoReconnect;
+
+		if (!autoReconnect) {
+			clearReconnectTimer();
+		} else if (
+			hasAttemptedConnect.current &&
+			(status === "disconnected" || status === "error")
+		) {
+			if (!isManualDisconnect.current) {
+				scheduleReconnect();
+			}
+		}
+	}, [autoReconnect, status, clearReconnectTimer, scheduleReconnect]);
+
 	useEffect(() => {
 		if (!hasAutoConnected.current && autoConnect && status === "disconnected") {
 			hasAutoConnected.current = true;
+			isManualDisconnect.current = false;
 			setStatus("connecting");
 		}
 	}, [autoConnect, status, setStatus]);
@@ -77,11 +118,15 @@ export function AmllWsClient() {
 
 	useEffect(() => {
 		if (status === "connecting" && !wsRef.current) {
+			isManualDisconnect.current = false;
+			hasAttemptedConnect.current = true;
 			const ws = new WebSocket(wsUrl);
 			wsRef.current = ws;
 
 			ws.onopen = () => {
+				clearReconnectTimer();
 				setStatus("connected");
+				setError("");
 				ws.send(JSON.stringify({ type: "initialize" }));
 			};
 
@@ -140,6 +185,7 @@ export function AmllWsClient() {
 				if (wsRef.current === ws) {
 					setStatus("disconnected");
 					wsRef.current = null;
+					scheduleReconnect();
 				}
 			};
 
@@ -148,9 +194,12 @@ export function AmllWsClient() {
 					setStatus("error");
 					setError("无法连接到 AMLL Player，请检查地址是否正确");
 					wsRef.current = null;
+					scheduleReconnect();
 				}
 			};
 		} else if (status === "disconnected" && wsRef.current) {
+			isManualDisconnect.current = true;
+			clearReconnectTimer();
 			wsRef.current.close();
 			wsRef.current = null;
 		}
@@ -159,6 +208,8 @@ export function AmllWsClient() {
 		wsUrl,
 		setStatus,
 		setError,
+		scheduleReconnect,
+		clearReconnectTimer,
 		play,
 		pause,
 		next,
@@ -171,12 +222,13 @@ export function AmllWsClient() {
 
 	useEffect(() => {
 		return () => {
+			clearReconnectTimer();
 			if (wsRef.current) {
 				wsRef.current.close();
 				wsRef.current = null;
 			}
 		};
-	}, []);
+	}, [clearReconnectTimer]);
 
 	useEffect(() => {
 		if (!songInfo || status !== "connected") return;
