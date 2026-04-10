@@ -51,11 +51,14 @@ export class LyricManager extends TypedEventTarget<LyricAdapterEventMap> {
 	}
 
 	public fetchLyric(songInfo: SongInfo): void {
+		console.log("[LyricManager] fetchLyric:", `ncmId=${songInfo.ncmId}`, `adapters=${this.adapters.map((a) => a.id).join(", ")}`);
+
 		if (this.currentMusicId !== songInfo.ncmId) {
 			this.currentMusicId = songInfo.ncmId;
+			// 只清除缓存，不立即发送 null（避免切歌时封面闪烁）
+			// 如果新歌确实无歌词，adapter 会返回 null 并触发封面
 			this.caches.clear();
 			this.rawLyricDataCache = {};
-			this.dispatch("update", null);
 		}
 
 		this.statuses = {};
@@ -82,6 +85,14 @@ export class LyricManager extends TypedEventTarget<LyricAdapterEventMap> {
 	) => {
 		const adapter = event.currentTarget as BaseLyricAdapter;
 		const lyric = event.detail;
+
+		console.log(
+			"[LyricManager] 收到 adapter 更新:",
+			`id=${adapter.id}`,
+			`有歌词=${!!lyric}`,
+			`lyric格式=${lyric?.format ?? "null"}`,
+			`行数=${lyric?.format === "structured" ? lyric.lines.length : "n/a"}`,
+		);
 
 		this.caches.set(adapter.id, lyric);
 
@@ -127,6 +138,15 @@ export class LyricManager extends TypedEventTarget<LyricAdapterEventMap> {
 				}
 			}
 		}
+
+		console.log(
+			"[LyricManager] evaluateAndDispatch:",
+			`statuses=${JSON.stringify(this.statuses)}`,
+			`isDebouncing=${this.isDebouncing}`,
+			`hasFoundHigherPriority=${hasFoundHigherPriority}`,
+			`isWaitingForHigherPriority=${isWaitingForHigherPriority}`,
+			`finalLyric=${finalLyric ? `${finalLyric.format}` : "null"}`,
+		);
 
 		this.dispatch("statuschange", { ...this.statuses });
 

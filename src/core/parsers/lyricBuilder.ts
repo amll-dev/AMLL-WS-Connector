@@ -37,20 +37,24 @@ export function buildAmllLyricLines(
 
 		const next = lrcLines[i + 1];
 
+		// 防护: 如果没有下一行，使用当前行 + 100 秒作为 endTime，而不是 Infinity
 		const defaultEndTime = next
 			? Math.max(0, Math.round(next.time))
 			: startTime + 100000;
 		const safeEndTime = Math.max(startTime, defaultEndTime);
 
+		// 额外防护: 确保 endTime 是有限的数字
+		const finalEndTime = Number.isFinite(safeEndTime) ? safeEndTime : startTime + 100000;
+
 		parsedLines.push({
 			startTime,
-			endTime: safeEndTime,
+			endTime: finalEndTime,
 			translatedLyric: transTexts[i] || "",
 			romanLyric: romaTexts[i] || "",
 			words: [
 				{
 					startTime,
-					endTime: safeEndTime,
+					endTime: finalEndTime,
 					word: current.text,
 				},
 			],

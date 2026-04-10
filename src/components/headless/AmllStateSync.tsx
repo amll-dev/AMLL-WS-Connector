@@ -11,6 +11,7 @@ import {
 	connectionIntentAtom,
 	connectionStatusAtom,
 	lyricAtom,
+	lyricSearchStatusAtom,
 	nextAtom,
 	pauseAtom,
 	playAtom,
@@ -55,6 +56,7 @@ export function AmllStateSync() {
 	const timelineOffset = useAtomValue(timelineOffsetAtom);
 
 	const lyricContent = useAtomValue(lyricAtom);
+	const lyricSearchStatus = useAtomValue(lyricSearchStatusAtom);
 
 	const play = useSetAtom(playAtom);
 	const pause = useSetAtom(pauseAtom);
@@ -66,6 +68,9 @@ export function AmllStateSync() {
 	const setShuffleMode = useSetAtom(setShuffleModeAtom);
 
 	const setReconnectCountdown = useSetAtom(reconnectCountdownAtom);
+
+	const lastSentSongIdRef = useRef<number | null>(null);
+	const lyricTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const handleIncomingMessage = useCallback(
 		(event: MessageEvent) => {
@@ -247,13 +252,66 @@ export function AmllStateSync() {
 	}, [playMode, status, sendStateUpdate]);
 
 	useEffect(() => {
-		if (!lyricContent || status !== "connected") return;
+		if (status !== "connected") return;
+
+		const currentSongId = songInfo?.ncmId ?? null;
+
+		if (!lyricContent) {
+			const sendEmptyLyric = () => {
+				console.log(
+					"[AmllStateSync] 发送空歌词（封面模式）",
+					`songId=${currentSongId}`,
+				);
+				sendStateUpdate({
+					update: "setLyric",
+					format: "structured",
+					lines: [],
+				});
+				lastSentSongIdRef.current = currentSongId;
+			};
+
+			if (lastSentSongIdRef.current === currentSongId) {
+				clearTimeout(lyricTimeoutRef.current ?? undefined);
+				lyricTimeoutRef.current = null;
+				sendEmptyLyric();
+			} else {
+				const statuses = Object.values(lyricSearchStatus);
+				const hasStatuses = statuses.length > 0;
+				const allDone = statuses.every(
+					(s) => s === "found" || s === "not_found" || s === "skipped",
+				);
+
+				if (hasStatuses && allDone) {
+					clearTimeout(lyricTimeoutRef.current ?? undefined);
+					lyricTimeoutRef.current = null;
+					sendEmptyLyric();
+				} else if (!lyricTimeoutRef.current) {
+					console.log(
+						"[AmllStateSync] 启动超时定时器等待歌词搜索完成",
+						`songId=${currentSongId}`,
+					);
+					lyricTimeoutRef.current = setTimeout(() => {
+						console.warn(
+							"[AmllStateSync] 歌词搜索超时（2s），强制发送空歌词兜底",
+							`songId=${currentSongId}`,
+						);
+						sendEmptyLyric();
+					}, 2000);
+				}
+			}
+			return;
+		}
+
+		clearTimeout(lyricTimeoutRef.current ?? undefined);
+		lyricTimeoutRef.current = null;
+
+		lastSentSongIdRef.current = currentSongId;
 
 		sendStateUpdate({
 			update: "setLyric",
 			...lyricContent,
 		});
-	}, [lyricContent, status, sendStateUpdate]);
+	}, [lyricContent, status, sendStateUpdate, lyricSearchStatus, songInfo?.ncmId]);
 
 	useEffect(() => {
 		const handleAudioData = (e: Event) => {

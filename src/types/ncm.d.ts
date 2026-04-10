@@ -37,7 +37,7 @@ export namespace v3 {
 	 * 网易云基础的行歌词格式
 	 */
 	export interface NcmLyricLine {
-		/** 歌词对应的时间，单位为秒 */
+		/** 歌词对应的时间，单位为毫秒 */
 		time: number;
 		/** 歌词文本 */
 		lyric: string;

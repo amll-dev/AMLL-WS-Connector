@@ -7,6 +7,7 @@ import { parseYrc } from "@/core/parsers/yrcParser";
 import type { SongInfo } from "@/types/inflink";
 import type { AmllLyricContent } from "@/types/ws";
 import { LyricFormat, type LyricSource } from "@/utils/source";
+import { isNonScrollingLyric } from "@/utils/lyricDetector";
 import { BaseLyricAdapter } from "./BaseLyricAdapter";
 
 export class ExternalLyricAdapter extends BaseLyricAdapter {
@@ -79,15 +80,29 @@ export class ExternalLyricAdapter extends BaseLyricAdapter {
 				const rawLrc = parseLrc(text);
 				if (rawLrc.length === 0) return null;
 
+				const lines = buildAmllLyricLines(rawLrc, [], []);
+
+				// 检测非滚动歌词
+				if (isNonScrollingLyric(lines)) {
+					console.log("[ExternalAdapter] LRC 歌词是非滚动歌词，触发 cover 模式");
+					return null;
+				}
+
 				return {
 					format: "structured",
-					lines: buildAmllLyricLines(rawLrc, [], []),
+					lines,
 				};
 			}
 
 			case LyricFormat.YRC: {
 				const yrcLines = parseYrc(text);
 				if (yrcLines.length === 0) return null;
+
+				// 检测非滚动歌词
+				if (isNonScrollingLyric(yrcLines)) {
+					console.log("[ExternalAdapter] YRC 歌词是非滚动歌词，触发 cover 模式");
+					return null;
+				}
 
 				return {
 					format: "structured",
@@ -99,6 +114,12 @@ export class ExternalLyricAdapter extends BaseLyricAdapter {
 				const lysLines = parseLys(text);
 				if (lysLines.length === 0) return null;
 
+				// 检测非滚动歌词
+				if (isNonScrollingLyric(lysLines)) {
+					console.log("[ExternalAdapter] LYS 歌词是非滚动歌词，触发 cover 模式");
+					return null;
+				}
+
 				return {
 					format: "structured",
 					lines: lysLines,
@@ -108,6 +129,12 @@ export class ExternalLyricAdapter extends BaseLyricAdapter {
 			case LyricFormat.QRC: {
 				const qrcLines = parseQrc(text);
 				if (qrcLines.length === 0) return null;
+
+				// 检测非滚动歌词
+				if (isNonScrollingLyric(qrcLines)) {
+					console.log("[ExternalAdapter] QRC 歌词是非滚动歌词，触发 cover 模式");
+					return null;
+				}
 
 				return {
 					format: "structured",
